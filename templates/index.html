@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="text-center mt-5">
+    <h1>Welcome to My App</h1>
+    <p class="lead">Please login or sign up to continue.</p>
+    <div class="mt-4">
+        <a href="{{ url_for('login') }}" class="btn btn-primary me-2">Login</a>
+        <a href="{{ url_for('signup') }}" class="btn btn-outline-primary">Sign Up</a>
+    </div>
+</div>
+{% endblock %} 
