@@ -3,9 +3,29 @@ import pandas as pd
 from datetime import datetime, timedelta
 import re
 
-# 读取 Excel 文件
+def evaluate_formula(value):
+    try:
+        # 如果不是字符串或不包含运算符，直接返回原值
+        if not isinstance(value, str) or not any(op in value for op in ['+', '-', '*', '/']):
+            return value
+            
+        # 替换中文数字
+        chinese_nums = {'一': '1', '二': '2', '三': '3', '四': '4', '五': '5',
+                       '六': '6', '七': '7', '八': '8', '九': '9', '零': '0'}
+        for cn, num in chinese_nums.items():
+            value = value.replace(cn, num)
+        
+        # 移除除数字和运算符外的所有字符
+        value = re.sub(r'[^0-9+\-*/().]', '', value)
+        
+        # 计算公式
+        return eval(value)
+    except:
+        return value
+
+# 读取 Excel 文件，使用data_only=True来获取公式计算后的值
 file_path = "./uploads/raw_data.xlsx"
-wb = openpyxl.load_workbook(file_path)
+wb = openpyxl.load_workbook(file_path, data_only=True)
 sheet = wb.active
 
 # 从工作表名称获取年份
@@ -19,7 +39,7 @@ new_sheet = wb.create_sheet("Processed")
 # 复制所有数据到新工作表，同时处理合并单元格和日期
 for row in sheet.iter_rows():
     for cell in row:
-        # 获取单元格的值
+        # 获取单元格的值（此时已经是计算后的值）
         value = cell.value
         print(f"Processing cell: {cell.coordinate}, Value: {value}, Type: {type(value)}")
         
