@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}View CSV - {{ filename }}{% endblock %}
+{% block title %}View Excel - {{ filename }}{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-5">
@@ -8,11 +8,14 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <h2 class="card-title">CSV File: {{ filename }}</h2>
+                    <h2 class="card-title">
+                        <i class="fas fa-file-excel text-success"></i>
+                        Excel File: {{ filename }}
+                    </h2>
                     
                     <div class="table-responsive mt-4">
                         <table class="table table-striped table-bordered table-hover">
-                            <thead class="table-dark">
+                            <thead class="table-success">
                                 <tr>
                                     {% for column in columns %}
                                     <th>{{ column }}</th>
@@ -52,8 +55,12 @@
 .table th {
     position: sticky;
     top: 0;
-    background-color: #212529;
+    background-color: #198754 !important;
     z-index: 1;
+}
+.table-success {
+    --bs-table-bg: #198754;
+    --bs-table-color: white;
 }
 </style>
 {% endblock %} 

@@ -116,29 +116,51 @@ def upload_file():
         file.save(filepath)
         
         try:
-            # Use your custom conversion script
-            csv_filename = os.path.splitext(filename)[0] + '.csv'
-            csv_filepath = os.path.join(app.config['UPLOAD_FOLDER'], csv_filename)
-            
             # Run the conversion script
-            result = subprocess.run([sys.executable, './spreadsheet/convert_to_csv.py', filepath, csv_filepath], 
+            result = subprocess.run([sys.executable, './spreadsheet/convert_to_csv.py', filepath], 
                                  capture_output=True, text=True)
             
             if result.returncode != 0:
                 raise Exception(f"Conversion failed: {result.stderr}")
             
-            # Read CSV for visualization
-            df = pd.read_csv(csv_filepath)
-            columns = df.columns.tolist()
-            data = df.values.tolist()
+            # Get all CSV files in the uploads directory
+            csv_files = [f for f in os.listdir(app.config['UPLOAD_FOLDER']) 
+                        if f.endswith('.csv') and f != 'raw_data.csv']
             
-            return render_template('visualize.html', columns=columns, data=data)
+            return render_template('csv_list.html', csv_files=csv_files, original_file=filename)
         except Exception as e:
             flash(f'Error processing file: {str(e)}', 'error')
             return redirect(url_for('dashboard'))
     
     flash('Invalid file type. Please upload an Excel file.', 'error')
     return redirect(url_for('dashboard'))
+
+@app.route('/view_csv/<filename>')
+@login_required
+def view_csv(filename):
+    try:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        df = pd.read_csv(filepath)
+        columns = df.columns.tolist()
+        data = df.values.tolist()
+        return render_template('visualize.html', filename=filename, columns=columns, data=data)
+    except Exception as e:
+        flash(f'Error reading CSV file: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/view_xlsx/<filename>')
+@login_required
+def view_xlsx(filename):
+    try:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        # 读取Excel文件
+        df = pd.read_excel(filepath)
+        columns = df.columns.tolist()
+        data = df.values.tolist()
+        return render_template('visualize_xlsx.html', filename=filename, columns=columns, data=data)
+    except Exception as e:
+        flash(f'Error reading Excel file: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/logout')
 @login_required
