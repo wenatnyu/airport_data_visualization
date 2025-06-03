@@ -30,8 +30,8 @@ def process_date(value, year):
         if isinstance(value, (int, float)):
             # Excel的日期是从1900年1月1日开始的天数
             excel_date = datetime(1900, 1, 1) + timedelta(days=int(value)-2)  # -2 是因为Excel的日期系统有一个bug
-            # 只保留月日信息
-            return excel_date.strftime('%m-%d')
+            # 返回完整的年月日格式
+            return excel_date.strftime('%Y-%m-%d')
         # 处理字符串日期格式
         elif isinstance(value, str):
             # 使用正则表达式提取月和日

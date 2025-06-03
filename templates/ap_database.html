@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Airport Database{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title">Airport Database Query Interface</h2>
+                    
+                    <!-- Visualization Buttons -->
+                    <div class="mb-4">
+                        <a href="{{ url_for('line_chart') }}" class="btn btn-info me-2">
+                            <i class="fas fa-chart-line"></i> Line Graph
+                        </a>
+                        <button class="btn btn-info" disabled>
+                            <i class="fas fa-chart-bar"></i> Multi-Bar Chart (Coming Soon)
+                        </button>
+                    </div>
+
+                    <!-- Available Tables Section -->
+                    <div class="mt-4">
+                        <h4>Available Tables</h4>
+                        <div class="list-group">
+                            {% for table in tables %}
+                            <div class="list-group-item">
+                                <h5 class="mb-1">{{ table.name }}</h5>
+                                <p class="mb-1">Fields: {{ table.fields|join(', ') }}</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- SQL Query Section -->
+                    <div class="mt-4">
+                        <h4>SQL Query Builder</h4>
+                        <form action="{{ url_for('execute_query') }}" method="POST" id="queryForm">
+                            <div class="row mb-3">
+                                <div class="col-md-2">
+                                    <label class="form-label">SELECT</label>
+                                </div>
+                                <div class="col-md-10">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="selectAll" checked>
+                                        <label class="form-check-label" for="selectAll">
+                                            * (All fields)
+                                        </label>
+                                    </div>
+                                    <div id="fieldsContainer" class="mt-2" style="display: none;">
+                                        {% for table in tables %}
+                                            {% for field in table.fields %}
+                                            <div class="form-check">
+                                                <input class="form-check-input field-checkbox" type="checkbox" 
+                                                       name="selected_fields" value="{{ field }}" 
+                                                       data-table="{{ table.name }}">
+                                                <label class="form-check-label">
+                                                    {{ field }}
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-2">
+                                    <label class="form-label">FROM</label>
+                                </div>
+                                <div class="col-md-10">
+                                    <select class="form-select" name="selected_table" required>
+                                        <option value="">Select a table...</option>
+                                        {% for table in tables %}
+                                        <option value="{{ table.name }}">{{ table.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-2">
+                                    <label class="form-label">WHERE</label>
+                                </div>
+                                <div class="col-md-10">
+                                    <input type="text" class="form-control" name="where_clause" 
+                                           placeholder="e.g., date >= '2024-01-01'">
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <button type="submit" class="btn btn-primary">Execute Query</button>
+                                    <button type="button" class="btn btn-secondary" id="showQuery">Show SQL</button>
+                                </div>
+                            </div>
+
+                            <!-- Hidden SQL query field -->
+                            <input type="hidden" name="query" id="generatedQuery">
+                        </form>
+                    </div>
+
+                    <!-- Query Results Section -->
+                    {% if results %}
+                    <div class="mt-4">
+                        <h4>Query Results</h4>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        {% for column in columns %}
+                                        <th>{{ column }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in results %}
+                                    <tr>
+                                        {% for cell in row %}
+                                        <td>{{ cell }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Error Message Section -->
+                    {% if error %}
+                    <div class="alert alert-danger mt-4">
+                        <h5>Error executing query:</h5>
+                        <p>{{ error }}</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const fieldsContainer = document.getElementById('fieldsContainer');
+    const fieldCheckboxes = document.querySelectorAll('.field-checkbox');
+    const tableSelect = document.querySelector('select[name="selected_table"]');
+    const showQueryBtn = document.getElementById('showQuery');
+    const generatedQueryInput = document.getElementById('generatedQuery');
+    const queryForm = document.getElementById('queryForm');
+
+    // Toggle fields visibility
+    selectAllCheckbox.addEventListener('change', function() {
+        fieldsContainer.style.display = this.checked ? 'none' : 'block';
+        fieldCheckboxes.forEach(cb => cb.checked = false);
+    });
+
+    // Update field checkboxes based on selected table
+    tableSelect.addEventListener('change', function() {
+        const selectedTable = this.value;
+        fieldCheckboxes.forEach(cb => {
+            cb.disabled = cb.dataset.table !== selectedTable;
+            if (cb.disabled) cb.checked = false;
+        });
+    });
+
+    // Generate SQL query
+    function generateQuery() {
+        const selectedTable = tableSelect.value;
+        if (!selectedTable) return;
+
+        let fields = [];
+        if (selectAllCheckbox.checked) {
+            fields = ['*'];
+        } else {
+            fieldCheckboxes.forEach(cb => {
+                if (cb.checked) fields.push(`"${cb.value}"`);
+            });
+        }
+
+        const whereClause = document.querySelector('input[name="where_clause"]').value;
+        
+        let query = `SELECT ${fields.join(', ')} FROM "${selectedTable}"`;
+        if (whereClause) {
+            query += ` WHERE ${whereClause}`;
+        }
+
+        return query;
+    }
+
+    // Show generated SQL
+    showQueryBtn.addEventListener('click', function() {
+        const query = generateQuery();
+        alert('Generated SQL:\n' + query);
+    });
+
+    // Update hidden query field before form submission
+    queryForm.addEventListener('submit', function(e) {
+        const query = generateQuery();
+        if (!query) {
+            e.preventDefault();
+            alert('Please select a table and fields');
+            return;
+        }
+        generatedQueryInput.value = query;
+    });
+});
+</script>
+{% endblock %}
+{% endblock %} 

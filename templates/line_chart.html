@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}Line Chart Visualization{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title">Line Chart Visualization</h2>
+                    
+                    <form id="chartForm" class="mt-4">
+                        <!-- Table Selection -->
+                        <div class="mb-4">
+                            <h4>Select Tables</h4>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="selectAllTables">
+                                <label class="form-check-label" for="selectAllTables">
+                                    Select All Tables
+                                </label>
+                            </div>
+                            <div class="table-selection">
+                                {% for table in tables %}
+                                <div class="form-check">
+                                    <input class="form-check-input table-checkbox" type="checkbox" 
+                                           name="selected_tables" value="{{ table.name }}" 
+                                           id="table_{{ loop.index }}">
+                                    <label class="form-check-label" for="table_{{ loop.index }}">
+                                        {{ table.name }}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Field Selection -->
+                        <div class="mb-4">
+                            <h4>Select Field</h4>
+                            {% if common_fields %}
+                                <select class="form-select" id="fieldSelect" name="selected_field" required>
+                                    <option value="">Select a field...</option>
+                                    {% for field in common_fields %}
+                                    <option value="{{ field }}">{{ field }}</option>
+                                    {% endfor %}
+                                </select>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    No common fields found between the selected tables.
+                                    <br>
+                                    Available fields in tables:
+                                    <ul>
+                                        {% for table in tables %}
+                                        <li>{{ table.name }}: {{ table.fields|join(', ') }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Date Range -->
+                        <div class="mb-4">
+                            <h4>Date Range</h4>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="startDate">Start Date</label>
+                                        <input type="date" class="form-control" id="startDate" name="start_date" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="endDate">End Date</label>
+                                        <input type="date" class="form-control" id="endDate" name="end_date" required>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-chart-line"></i> Generate Chart
+                            </button>
+                            <a href="{{ url_for('ap_database') }}" class="btn btn-secondary">Back to Database</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart Modal -->
+<div class="modal fade" id="chartModal" tabindex="-1" aria-labelledby="chartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chartModalLabel">Line Chart</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div style="height: 70vh;">
+                    <canvas id="lineChart"></canvas>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('selectAllTables');
+    const tableCheckboxes = document.querySelectorAll('.table-checkbox');
+    const chartForm = document.getElementById('chartForm');
+    let lineChart = null;
+    const chartModal = new bootstrap.Modal(document.getElementById('chartModal'));
+
+    // 全选/取消全选功能
+    selectAllCheckbox.addEventListener('change', function() {
+        tableCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // 当单个复选框状态改变时，检查是否所有复选框都被选中
+    tableCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const allChecked = Array.from(tableCheckboxes).every(cb => cb.checked);
+            selectAllCheckbox.checked = allChecked;
+        });
+    });
+
+    // 表单提交处理
+    chartForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const selectedTables = Array.from(tableCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        
+        if (selectedTables.length === 0) {
+            alert('Please select at least one table');
+            return;
+        }
+
+        const selectedField = document.getElementById('fieldSelect').value;
+        if (!selectedField) {
+            alert('Please select a field');
+            return;
+        }
+
+        const startDate = document.getElementById('startDate').value;
+        const endDate = document.getElementById('endDate').value;
+        if (!startDate || !endDate) {
+            alert('Please select both start and end dates');
+            return;
+        }
+
+        try {
+            const response = await fetch('/get_chart_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tables: selectedTables,
+                    field: selectedField,
+                    start_date: startDate,
+                    end_date: endDate
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch chart data');
+            }
+
+            const data = await response.json();
+            
+            // 更新模态窗口标题
+            document.getElementById('chartModalLabel').textContent = `${selectedField} Over Time`;
+            
+            // 如果已存在图表，销毁它
+            if (lineChart) {
+                lineChart.destroy();
+            }
+
+            // 创建新图表
+            const ctx = document.getElementById('lineChart').getContext('2d');
+            lineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: data.datasets.map((dataset, index) => ({
+                        label: dataset.label,
+                        data: dataset.data.map(value => value === null ? null : Number(value)),
+                        borderColor: `hsl(${index * 360 / data.datasets.length}, 70%, 50%)`,
+                        backgroundColor: `hsla(${index * 360 / data.datasets.length}, 70%, 50%, 0.1)`,
+                        borderWidth: 2,
+                        pointStyle: ['circle', 'triangle', 'rect', 'star', 'cross'][index % 5],
+                        pointRadius: 5,
+                        tension: 0.1,
+                        fill: false,
+                        spanGaps: true
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `${selectedField} Over Time`,
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toLocaleString();
+                                    } else {
+                                        label += 'No data';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day',
+                                displayFormats: {
+                                    day: 'yyyy-MM-dd'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            },
+                            grid: {
+                                display: true
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: selectedField
+                            },
+                            beginAtZero: false,
+                            grid: {
+                                display: true
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            },
+                            suggestedMin: function() {
+                                const allValues = data.datasets.flatMap(ds => ds.data.filter(v => v !== null));
+                                const min = Math.min(...allValues);
+                                return min * 0.95;
+                            }(),
+                            suggestedMax: function() {
+                                const allValues = data.datasets.flatMap(ds => ds.data.filter(v => v !== null));
+                                const max = Math.max(...allValues);
+                                return max * 1.05;
+                            }()
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    },
+                    animation: {
+                        duration: 1000
+                    },
+                    hover: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                }
+            });
+
+            // 显示模态窗口
+            chartModal.show();
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error generating chart: ' + error.message);
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %} 

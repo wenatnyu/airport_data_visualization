@@ -9,7 +9,7 @@
             <div class="card">
                 <div class="card-body">
                     <h2 class="card-title">Generated CSV Files</h2>
-                    <p class="card-text">Click on a button below to view the contents of each CSV file.</p>
+                    <p class="card-text">Select the CSV files you want to process and click "Process Selected Files".</p>
                     
                     {% if original_file %}
                     <div class="alert alert-info mt-3">
@@ -26,22 +26,68 @@
                     </div>
                     {% endif %}
                     
-                    <div class="list-group mt-4">
-                        {% for csv_file in csv_files %}
-                        <a href="{{ url_for('view_csv', filename=csv_file) }}" 
-                           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                            {{ csv_file }}
-                            <span class="badge bg-primary rounded-pill">View</span>
-                        </a>
-                        {% endfor %}
-                    </div>
-                    
-                    <div class="mt-4">
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
-                    </div>
+                    <form action="{{ url_for('process_selected_files') }}" method="POST">
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="selectAllFiles">
+                                <label class="form-check-label" for="selectAllFiles">
+                                    Select All Files
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="list-group mt-4">
+                            {% for csv_file in csv_files %}
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <div class="form-check">
+                                    <input class="form-check-input file-checkbox" type="checkbox" name="selected_files" 
+                                           value="{{ csv_file }}" id="file_{{ loop.index }}">
+                                    <label class="form-check-label" for="file_{{ loop.index }}">
+                                        {{ csv_file }}
+                                    </label>
+                                </div>
+                                <a href="{{ url_for('view_csv', filename=csv_file) }}" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-database"></i> Process Selected Files
+                            </button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllCheckbox = document.getElementById('selectAllFiles');
+    const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+
+    // 全选/取消全选功能
+    selectAllCheckbox.addEventListener('change', function() {
+        fileCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // 当单个复选框状态改变时，检查是否所有复选框都被选中
+    fileCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const allChecked = Array.from(fileCheckboxes).every(cb => cb.checked);
+            selectAllCheckbox.checked = allChecked;
+        });
+    });
+});
+</script>
+{% endblock %}
 {% endblock %} 
