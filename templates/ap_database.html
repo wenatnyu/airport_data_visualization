@@ -3,147 +3,348 @@
 {% block title %}Airport Database{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
+<div class="container-fluid mt-4">
+    <!-- First Layer: Visualization Buttons -->
+    <div class="row mb-4">
+        <div class="col-12 text-center">
+            <div class="visualization-buttons">
+                <a href="{{ url_for('line_chart') }}" class="btn btn-info btn-lg me-3">
+                    <i class="fas fa-chart-line"></i> Line Graph
+                </a>
+                <a href="{{ url_for('multibar_chart') }}" class="btn btn-info btn-lg">
+                    <i class="fas fa-chart-bar"></i> Multi-Bar Chart
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second Layer: Tables and Query Builder -->
     <div class="row">
-        <div class="col-md-12">
-            <div class="card">
+        <!-- Left Side: Available Tables -->
+        <div class="col-md-4">
+            <div class="card h-100">
                 <div class="card-body">
-                    <h2 class="card-title">Airport Database Query Interface</h2>
-                    
-                    <!-- Visualization Buttons -->
-                    <div class="mb-4">
-                        <a href="{{ url_for('line_chart') }}" class="btn btn-info me-2">
-                            <i class="fas fa-chart-line"></i> Line Graph
-                        </a>
-                        <button class="btn btn-info" disabled>
-                            <i class="fas fa-chart-bar"></i> Multi-Bar Chart (Coming Soon)
-                        </button>
-                    </div>
-
-                    <!-- Available Tables Section -->
-                    <div class="mt-4">
-                        <h4>Available Tables</h4>
-                        <div class="list-group">
-                            {% for table in tables %}
-                            <div class="list-group-item">
-                                <h5 class="mb-1">{{ table.name }}</h5>
-                                <p class="mb-1">Fields: {{ table.fields|join(', ') }}</p>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <!-- SQL Query Section -->
-                    <div class="mt-4">
-                        <h4>SQL Query Builder</h4>
-                        <form action="{{ url_for('execute_query') }}" method="POST" id="queryForm">
-                            <div class="row mb-3">
-                                <div class="col-md-2">
-                                    <label class="form-label">SELECT</label>
-                                </div>
-                                <div class="col-md-10">
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" id="selectAll" checked>
-                                        <label class="form-check-label" for="selectAll">
-                                            * (All fields)
-                                        </label>
+                    <h4 class="card-title"><i class="fas fa-folder-open me-2"></i>Available Tables</h4>
+                    <div class="row">
+                        {% for table in tables %}
+                        <div class="col-6 mb-3">
+                            <div class="card folder-card table-card-{{ loop.index % 4 }}">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <i class="fas fa-table me-2 table-icon-{{ loop.index % 4 }}"></i>
+                                        <h5 class="card-title mb-0">{{ table.name }}</h5>
                                     </div>
-                                    <div id="fieldsContainer" class="mt-2" style="display: none;">
-                                        {% for table in tables %}
+                                    <div class="folder-content">
+                                        <div class="folder-header">
+                                            <i class="fas fa-list-ul me-2"></i>
+                                            <span>Fields:</span>
+                                        </div>
+                                        <ul class="folder-list">
                                             {% for field in table.fields %}
-                                            <div class="form-check">
-                                                <input class="form-check-input field-checkbox" type="checkbox" 
-                                                       name="selected_fields" value="{{ field }}" 
-                                                       data-table="{{ table.name }}">
-                                                <label class="form-check-label">
-                                                    {{ field }}
-                                                </label>
-                                            </div>
+                                            <li>
+                                                <i class="fas fa-angle-right me-2"></i>
+                                                {{ field }}
+                                            </li>
                                             {% endfor %}
-                                        {% endfor %}
+                                        </ul>
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-2">
-                                    <label class="form-label">FROM</label>
-                                </div>
-                                <div class="col-md-10">
-                                    <select class="form-select" name="selected_table" required>
-                                        <option value="">Select a table...</option>
-                                        {% for table in tables %}
-                                        <option value="{{ table.name }}">{{ table.name }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-2">
-                                    <label class="form-label">WHERE</label>
-                                </div>
-                                <div class="col-md-10">
-                                    <input type="text" class="form-control" name="where_clause" 
-                                           placeholder="e.g., date >= '2024-01-01'">
-                                </div>
-                            </div>
-
-                            <div class="row mb-3">
-                                <div class="col-md-12">
-                                    <button type="submit" class="btn btn-primary">Execute Query</button>
-                                    <button type="button" class="btn btn-secondary" id="showQuery">Show SQL</button>
-                                </div>
-                            </div>
-
-                            <!-- Hidden SQL query field -->
-                            <input type="hidden" name="query" id="generatedQuery">
-                        </form>
-                    </div>
-
-                    <!-- Query Results Section -->
-                    {% if results %}
-                    <div class="mt-4">
-                        <h4>Query Results</h4>
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        {% for column in columns %}
-                                        <th>{{ column }}</th>
-                                        {% endfor %}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for row in results %}
-                                    <tr>
-                                        {% for cell in row %}
-                                        <td>{{ cell }}</td>
-                                        {% endfor %}
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
                         </div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Error Message Section -->
-                    {% if error %}
-                    <div class="alert alert-danger mt-4">
-                        <h5>Error executing query:</h5>
-                        <p>{{ error }}</p>
-                    </div>
-                    {% endif %}
-
-                    <div class="mt-4">
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Right Side: SQL Query Builder and Results -->
+        <div class="col-md-8">
+            <!-- SQL Query Builder -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h4 class="card-title"><i class="fas fa-database me-2"></i>SQL Query Builder</h4>
+                    <form action="{{ url_for('execute_query') }}" method="POST" id="queryForm">
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <label class="form-label">SELECT</label>
+                            </div>
+                            <div class="col-md-10">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="selectAll" checked>
+                                    <label class="form-check-label" for="selectAll">
+                                        * (All fields)
+                                    </label>
+                                </div>
+                                <div id="fieldsContainer" class="mt-2" style="display: none;">
+                                    {% for table in tables %}
+                                        {% for field in table.fields %}
+                                        <div class="form-check">
+                                            <input class="form-check-input field-checkbox" type="checkbox" 
+                                                   name="selected_fields" value="{{ field }}" 
+                                                   data-table="{{ table.name }}">
+                                            <label class="form-check-label">
+                                                {{ field }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <label class="form-label">FROM</label>
+                            </div>
+                            <div class="col-md-10">
+                                <select class="form-select" name="selected_table" required>
+                                    <option value="">Select a table...</option>
+                                    {% for table in tables %}
+                                    <option value="{{ table.name }}">{{ table.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <label class="form-label">WHERE</label>
+                            </div>
+                            <div class="col-md-10">
+                                <input type="text" class="form-control" name="where_clause" 
+                                       placeholder="e.g., date >= '2024-01-01'">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-play me-2"></i>Execute Query
+                                </button>
+                                <button type="button" class="btn btn-secondary" id="showQuery">
+                                    <i class="fas fa-code me-2"></i>Show SQL
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="query" id="generatedQuery">
+                    </form>
+                </div>
+            </div>
+
+            <!-- Query Results -->
+            {% if results %}
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title"><i class="fas fa-table me-2"></i>Query Results</h4>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    {% for column in columns %}
+                                    <th>{{ column }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in results %}
+                                <tr>
+                                    {% for cell in row %}
+                                    <td>{{ cell }}</td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Error Message Section -->
+    {% if error %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-danger">
+                <h5><i class="fas fa-exclamation-triangle me-2"></i>Error executing query:</h5>
+                <p>{{ error }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+        </div>
     </div>
 </div>
+
+<style>
+    .visualization-buttons {
+        padding: 20px 0;
+        background: #f8f9fa;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .folder-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        transition: all 0.3s ease;
+        height: 100%;
+    }
+
+    .folder-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    /* Table card color variations */
+    .table-card-0 {
+        border-left: 4px solid #4e73df;
+        background: linear-gradient(to right, rgba(78, 115, 223, 0.05), #fff);
+    }
+
+    .table-card-1 {
+        border-left: 4px solid #1cc88a;
+        background: linear-gradient(to right, rgba(28, 200, 138, 0.05), #fff);
+    }
+
+    .table-card-2 {
+        border-left: 4px solid #36b9cc;
+        background: linear-gradient(to right, rgba(54, 185, 204, 0.05), #fff);
+    }
+
+    .table-card-3 {
+        border-left: 4px solid #f6c23e;
+        background: linear-gradient(to right, rgba(246, 194, 62, 0.05), #fff);
+    }
+
+    /* Table icon colors */
+    .table-icon-0 {
+        color: #4e73df;
+    }
+
+    .table-icon-1 {
+        color: #1cc88a;
+    }
+
+    .table-icon-2 {
+        color: #36b9cc;
+    }
+
+    .table-icon-3 {
+        color: #f6c23e;
+    }
+
+    .folder-content {
+        background: rgba(248, 249, 250, 0.7);
+        border-radius: 6px;
+        padding: 10px;
+        margin-top: 10px;
+        height: calc(100% - 50px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .folder-header {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        padding-bottom: 5px;
+        border-bottom: 1px dashed #dee2e6;
+    }
+
+    .folder-list {
+        list-style: none;
+        padding-left: 0;
+        margin-bottom: 0;
+        max-height: 120px;
+        overflow-y: auto;
+        flex-grow: 1;
+    }
+
+    .folder-list li {
+        padding: 4px 0;
+        font-size: 0.9rem;
+        color: #495057;
+        display: flex;
+        align-items: center;
+    }
+
+    .folder-list li i {
+        color: #6c757d;
+        font-size: 0.8rem;
+    }
+
+    .folder-list::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .folder-list::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    .folder-list::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+    }
+
+    .folder-list::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
+    .table-responsive {
+        margin-top: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .table {
+        margin-bottom: 0;
+    }
+
+    .table thead th {
+        border-top: none;
+        background-color: #f8f9fa;
+        font-weight: 600;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        font-weight: 500;
+    }
+
+    .btn-lg {
+        padding: 12px 24px;
+    }
+
+    .card {
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .card-title {
+        margin-bottom: 1.5rem;
+        color: #2c3e50;
+    }
+
+    /* Ensure consistent height for table cards */
+    .col-6 {
+        display: flex;
+    }
+
+    .col-6 > .folder-card {
+        width: 100%;
+    }
+</style>
 
 {% block scripts %}
 <script>

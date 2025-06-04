@@ -192,44 +192,99 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // 创建新图表
             const ctx = document.getElementById('lineChart').getContext('2d');
+            
+            // 准备数据集
+            const datasets = [];
+            const colors = [
+                'rgba(54, 162, 235, 0.8)',   // 蓝色
+                'rgba(255, 99, 132, 0.8)',   // 红色
+                'rgba(75, 192, 192, 0.8)',   // 青色
+                'rgba(255, 206, 86, 0.8)',   // 黄色
+                'rgba(153, 102, 255, 0.8)',  // 紫色
+                'rgba(255, 159, 64, 0.8)',   // 橙色
+                'rgba(199, 199, 199, 0.8)',  // 灰色
+                'rgba(83, 102, 255, 0.8)',   // 靛蓝色
+                'rgba(255, 99, 255, 0.8)',   // 粉色
+                'rgba(99, 255, 132, 0.8)'    // 绿色
+            ];
+
+            // 为每个表格创建一个数据集
+            data.datasets.forEach((dataset, index) => {
+                datasets.push({
+                    label: dataset.label,
+                    data: dataset.data,
+                    borderColor: colors[index % colors.length],
+                    backgroundColor: colors[index % colors.length].replace('0.8', '0.1'),
+                    borderWidth: 3,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointStyle: ['circle', 'triangle', 'rect', 'star', 'cross'][index % 5],
+                    tension: 0.3,
+                    fill: false,
+                    spanGaps: true
+                });
+            });
+
+            // 计算所有非空值的范围，用于设置Y轴
+            const allValues = datasets.flatMap(ds => ds.data).filter(v => v !== null);
+            const minValue = Math.min(...allValues);
+            const maxValue = Math.max(...allValues);
+            const padding = (maxValue - minValue) * 0.1; // 10% padding
+
             lineChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: data.labels,
-                    datasets: data.datasets.map((dataset, index) => ({
-                        label: dataset.label,
-                        data: dataset.data.map(value => value === null ? null : Number(value)),
-                        borderColor: `hsl(${index * 360 / data.datasets.length}, 70%, 50%)`,
-                        backgroundColor: `hsla(${index * 360 / data.datasets.length}, 70%, 50%, 0.1)`,
-                        borderWidth: 2,
-                        pointStyle: ['circle', 'triangle', 'rect', 'star', 'cross'][index % 5],
-                        pointRadius: 5,
-                        tension: 0.1,
-                        fill: false,
-                        spanGaps: true
-                    }))
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
                     plugins: {
                         title: {
                             display: true,
                             text: `${selectedField} Over Time`,
                             font: {
-                                size: 16
+                                size: 18,
+                                weight: 'bold',
+                                family: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif"
+                            },
+                            padding: {
+                                top: 10,
+                                bottom: 20
                             }
                         },
                         legend: {
                             position: 'top',
+                            align: 'center',
                             labels: {
                                 usePointStyle: true,
-                                padding: 20
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
                             }
                         },
                         tooltip: {
+                            enabled: true,
                             mode: 'index',
                             intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            titleFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            padding: 12,
+                            cornerRadius: 6,
                             callbacks: {
                                 label: function(context) {
                                     let label = context.dataset.label || '';
@@ -247,6 +302,34 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     },
                     scales: {
+                        y: {
+                            beginAtZero: true,
+                            min: Math.max(0, minValue - padding),
+                            max: maxValue + padding,
+                            title: {
+                                display: true,
+                                text: selectedField,
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                },
+                                padding: {top: 10, bottom: 10}
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                },
+                                font: {
+                                    size: 12
+                                },
+                                padding: 8
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)',
+                                drawBorder: true,
+                                borderDash: [5, 5]
+                            }
+                        },
                         x: {
                             type: 'time',
                             time: {
@@ -257,49 +340,35 @@ document.addEventListener('DOMContentLoaded', function() {
                             },
                             title: {
                                 display: true,
-                                text: 'Date'
-                            },
-                            grid: {
-                                display: true
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: selectedField
-                            },
-                            beginAtZero: false,
-                            grid: {
-                                display: true
+                                text: 'Date',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                },
+                                padding: {top: 10, bottom: 10}
                             },
                             ticks: {
-                                callback: function(value) {
-                                    return value.toLocaleString();
-                                }
+                                font: {
+                                    size: 12
+                                },
+                                padding: 8
                             },
-                            suggestedMin: function() {
-                                const allValues = data.datasets.flatMap(ds => ds.data.filter(v => v !== null));
-                                const min = Math.min(...allValues);
-                                return min * 0.95;
-                            }(),
-                            suggestedMax: function() {
-                                const allValues = data.datasets.flatMap(ds => ds.data.filter(v => v !== null));
-                                const max = Math.max(...allValues);
-                                return max * 1.05;
-                            }()
+                            grid: {
+                                display: false
+                            }
                         }
                     },
-                    interaction: {
-                        mode: 'nearest',
-                        axis: 'x',
-                        intersect: false
-                    },
                     animation: {
-                        duration: 1000
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
                     },
-                    hover: {
-                        mode: 'index',
-                        intersect: false
+                    layout: {
+                        padding: {
+                            top: 20,
+                            right: 20,
+                            bottom: 20,
+                            left: 20
+                        }
                     }
                 }
             });

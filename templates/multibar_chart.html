@@ -1,0 +1,736 @@
+{% extends "base.html" %}
+
+{% block title %}Multi-Bar Chart Visualization{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="card-title">Multi-Bar Chart Visualization</h2>
+                    
+                    <form id="chartForm" class="mt-4">
+                        <div class="selection-container">
+                            <!-- Left Side: Table Selection -->
+                            <div class="selection-card">
+                                <div class="card-body">
+                                    <h4 class="card-title"><i class="fas fa-table me-2"></i>Select Tables</h4>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="selectAllTables">
+                                        <label class="form-check-label" for="selectAllTables">
+                                            Select All Tables
+                                        </label>
+                                    </div>
+                                    <div class="table-selection">
+                                        {% for table in tables %}
+                                        <div class="form-check">
+                                            <input class="form-check-input table-checkbox" type="checkbox" 
+                                                   name="selected_tables" value="{{ table.name }}" 
+                                                   id="table_{{ loop.index }}">
+                                            <label class="form-check-label" for="table_{{ loop.index }}">
+                                                {{ table.name }}
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right Side: Field Selection -->
+                            <div class="selection-card">
+                                <div class="card-body">
+                                    <h4 class="card-title"><i class="fas fa-list me-2"></i>Select Fields</h4>
+                                    {% if common_fields %}
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" id="selectAllFields">
+                                            <label class="form-check-label" for="selectAllFields">
+                                                Select All Fields
+                                            </label>
+                                        </div>
+                                        <div class="field-selection">
+                                            {% for field in common_fields %}
+                                            <div class="form-check">
+                                                <input class="form-check-input field-checkbox" type="checkbox" 
+                                                       name="selected_fields" value="{{ field }}" 
+                                                       id="field_{{ loop.index }}">
+                                                <label class="form-check-label" for="field_{{ loop.index }}">
+                                                    {{ field }}
+                                                </label>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <div class="alert alert-warning">
+                                            No common fields found between the selected tables.
+                                            <br>
+                                            Available fields in tables:
+                                            <ul>
+                                                {% for table in tables %}
+                                                <li>{{ table.name }}: {{ table.fields|join(', ') }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Date Selection Calendar -->
+                        <div class="date-selection-card">
+                            <div class="card-body">
+                                <h4 class="card-title"><i class="fas fa-calendar me-2"></i>Select Date</h4>
+                                <div id="calendar" class="calendar-container"></div>
+                                <input type="hidden" id="selectedDate" name="selected_date" required>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-12 text-center">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-chart-bar me-2"></i> Generate Chart
+                                </button>
+                                <a href="{{ url_for('ap_database') }}" class="btn btn-secondary btn-lg ms-2">
+                                    <i class="fas fa-arrow-left me-2"></i>Back to Database
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart Modal -->
+<div class="modal fade" id="chartModal" tabindex="-1" aria-labelledby="chartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="chartModalLabel">Multi-Bar Chart</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div style="height: 70vh;">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .calendar-container {
+        padding: 15px;
+        background: #fff;
+        border-radius: 8px;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .calendar {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 3px;
+    }
+
+    .calendar th {
+        padding: 8px;
+        text-align: center;
+        font-weight: bold;
+        color: #495057;
+        font-size: 0.9rem;
+    }
+
+    .calendar td {
+        padding: 8px;
+        text-align: center;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+    }
+
+    .calendar td:hover {
+        background-color: #e9ecef;
+    }
+
+    .calendar td.selected {
+        background-color: #4e73df;
+        color: white;
+    }
+
+    .calendar td.disabled {
+        color: #dee2e6;
+        cursor: not-allowed;
+    }
+
+    .calendar td.today {
+        border: 2px solid #4e73df;
+    }
+
+    .calendar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .calendar-header .nav-buttons {
+        display: flex;
+        gap: 8px;
+    }
+
+    .calendar-header button {
+        background: none;
+        border: none;
+        font-size: 1rem;
+        color: #4e73df;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .calendar-header button:hover {
+        background-color: #e9ecef;
+    }
+
+    .calendar-header h3 {
+        margin: 0;
+        color: #2c3e50;
+        min-width: 180px;
+        text-align: center;
+        font-size: 1.1rem;
+    }
+
+    .table-selection, .field-selection {
+        max-height: 350px;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+
+    .selection-container {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        margin-bottom: 20px;
+    }
+
+    .selection-card {
+        flex: 1;
+        max-width: 500px;
+        min-width: 300px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #e0e0e0;
+    }
+
+    .selection-card .card-body {
+        padding: 1.25rem;
+    }
+
+    .selection-card .card-title {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #4e73df;
+    }
+
+    .selection-card .form-check {
+        margin-bottom: 0.5rem;
+    }
+
+    .selection-card .form-check-label {
+        color: #495057;
+    }
+
+    .selection-card .form-check-input:checked + .form-check-label {
+        color: #4e73df;
+        font-weight: 500;
+    }
+
+    .date-selection-card {
+        max-width: 800px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #e0e0e0;
+    }
+
+    .date-selection-card .card-body {
+        padding: 1.25rem;
+    }
+
+    .date-selection-card .card-title {
+        color: #2c3e50;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #4e73df;
+    }
+
+    .table-selection::-webkit-scrollbar, .field-selection::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .table-selection::-webkit-scrollbar-track, .field-selection::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    .table-selection::-webkit-scrollbar-thumb, .field-selection::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+    }
+
+    .table-selection::-webkit-scrollbar-thumb:hover, .field-selection::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
+    .card {
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .card-title {
+        color: #2c3e50;
+        margin-bottom: 1.5rem;
+    }
+</style>
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const selectAllTablesCheckbox = document.getElementById('selectAllTables');
+    const tableCheckboxes = document.querySelectorAll('.table-checkbox');
+    const selectAllFieldsCheckbox = document.getElementById('selectAllFields');
+    const fieldCheckboxes = document.querySelectorAll('.field-checkbox');
+    const chartForm = document.getElementById('chartForm');
+    let barChart = null;
+    const chartModal = new bootstrap.Modal(document.getElementById('chartModal'));
+    const selectedDateInput = document.getElementById('selectedDate');
+
+    // 初始化日历
+    function initCalendar() {
+        const calendarContainer = document.getElementById('calendar');
+        const today = new Date();
+        let currentMonth = today.getMonth();
+        let currentYear = today.getFullYear();
+
+        function renderCalendar() {
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const startingDay = firstDay.getDay();
+            const monthLength = lastDay.getDate();
+
+            const monthNames = ["January", "February", "March", "April", "May", "June",
+                              "July", "August", "September", "October", "November", "December"];
+
+            let calendarHTML = `
+                <div class="calendar-header">
+                    <div class="nav-buttons">
+                        <button onclick="prevYear()">
+                            <i class="fas fa-angle-double-left"></i>
+                            <span>Year</span>
+                        </button>
+                        <button onclick="prevMonth()">
+                            <i class="fas fa-angle-left"></i>
+                            <span>Month</span>
+                        </button>
+                    </div>
+                    <h3>${monthNames[currentMonth]} ${currentYear}</h3>
+                    <div class="nav-buttons">
+                        <button onclick="nextMonth()">
+                            <span>Month</span>
+                            <i class="fas fa-angle-right"></i>
+                        </button>
+                        <button onclick="nextYear()">
+                            <span>Year</span>
+                            <i class="fas fa-angle-double-right"></i>
+                        </button>
+                    </div>
+                </div>
+                <table class="calendar">
+                    <thead>
+                        <tr>
+                            <th>Sun</th>
+                            <th>Mon</th>
+                            <th>Tue</th>
+                            <th>Wed</th>
+                            <th>Thu</th>
+                            <th>Fri</th>
+                            <th>Sat</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            let day = 1;
+            for (let i = 0; i < 6; i++) {
+                calendarHTML += '<tr>';
+                for (let j = 0; j < 7; j++) {
+                    if (i === 0 && j < startingDay) {
+                        calendarHTML += '<td></td>';
+                    } else if (day > monthLength) {
+                        calendarHTML += '<td></td>';
+                    } else {
+                        const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const isToday = day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
+                        const isSelected = dateStr === selectedDateInput.value;
+                        calendarHTML += `
+                            <td class="${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}"
+                                onclick="selectDate('${dateStr}')">
+                                ${day}
+                            </td>`;
+                        day++;
+                    }
+                }
+                calendarHTML += '</tr>';
+                if (day > monthLength) break;
+            }
+
+            calendarHTML += `
+                    </tbody>
+                </table>
+            `;
+
+            calendarContainer.innerHTML = calendarHTML;
+        }
+
+        window.prevYear = function() {
+            currentYear--;
+            renderCalendar();
+        };
+
+        window.nextYear = function() {
+            currentYear++;
+            renderCalendar();
+        };
+
+        window.prevMonth = function() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        };
+
+        window.nextMonth = function() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+        };
+
+        window.selectDate = function(dateStr) {
+            selectedDateInput.value = dateStr;
+            renderCalendar();
+        };
+
+        renderCalendar();
+    }
+
+    initCalendar();
+
+    // 表格全选/取消全选功能
+    selectAllTablesCheckbox.addEventListener('change', function() {
+        tableCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // 字段全选/取消全选功能
+    selectAllFieldsCheckbox.addEventListener('change', function() {
+        fieldCheckboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // 当单个表格复选框状态改变时，检查是否所有复选框都被选中
+    tableCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const allChecked = Array.from(tableCheckboxes).every(cb => cb.checked);
+            selectAllTablesCheckbox.checked = allChecked;
+        });
+    });
+
+    // 当单个字段复选框状态改变时，检查是否所有复选框都被选中
+    fieldCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const allChecked = Array.from(fieldCheckboxes).every(cb => cb.checked);
+            selectAllFieldsCheckbox.checked = allChecked;
+        });
+    });
+
+    // 表单提交处理
+    chartForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const selectedTables = Array.from(tableCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        
+        if (selectedTables.length === 0) {
+            alert('Please select at least one table');
+            return;
+        }
+
+        const selectedFields = Array.from(fieldCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        
+        if (selectedFields.length === 0) {
+            alert('Please select at least one field');
+            return;
+        }
+
+        const selectedDate = selectedDateInput.value;
+        if (!selectedDate) {
+            alert('Please select a date');
+            return;
+        }
+
+        try {
+            const response = await fetch('/get_multibar_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tables: selectedTables,
+                    fields: selectedFields,
+                    selected_date: selectedDate
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch chart data');
+            }
+
+            const data = await response.json();
+            
+            // 更新模态窗口标题
+            document.getElementById('chartModalLabel').textContent = `Data Comparison (${selectedDate})`;
+            
+            // 如果已存在图表，销毁它
+            if (barChart) {
+                barChart.destroy();
+            }
+
+            // 创建新图表
+            const ctx = document.getElementById('barChart').getContext('2d');
+            
+            // 准备数据集
+            const datasets = [];
+            const colors = [
+                'rgba(54, 162, 235, 0.8)',   // 蓝色
+                'rgba(255, 99, 132, 0.8)',   // 红色
+                'rgba(75, 192, 192, 0.8)',   // 青色
+                'rgba(255, 206, 86, 0.8)',   // 黄色
+                'rgba(153, 102, 255, 0.8)',  // 紫色
+                'rgba(255, 159, 64, 0.8)',   // 橙色
+                'rgba(199, 199, 199, 0.8)',  // 灰色
+                'rgba(83, 102, 255, 0.8)',   // 靛蓝色
+                'rgba(255, 99, 255, 0.8)',   // 粉色
+                'rgba(99, 255, 132, 0.8)'    // 绿色
+            ];
+
+            // 为每个表格创建一个数据集
+            selectedTables.forEach((table, tableIndex) => {
+                const tableData = data.datasets.map(fieldDataset => {
+                    const tableValue = fieldDataset.data.find(d => d.label === table);
+                    return tableValue ? tableValue.value : null;
+                });
+
+                datasets.push({
+                    label: table,
+                    data: tableData,
+                    backgroundColor: colors[tableIndex % colors.length],
+                    borderColor: colors[tableIndex % colors.length].replace('0.8', '1'),
+                    borderWidth: 2,
+                    borderRadius: 5,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.9,
+                    hoverBackgroundColor: colors[tableIndex % colors.length].replace('0.8', '0.9'),
+                    hoverBorderColor: colors[tableIndex % colors.length].replace('0.8', '1'),
+                    hoverBorderWidth: 3
+                });
+            });
+
+            // 计算所有非空值的范围，用于设置Y轴
+            const allValues = datasets.flatMap(ds => ds.data).filter(v => v !== null);
+            const minValue = Math.min(...allValues);
+            const maxValue = Math.max(...allValues);
+            const padding = (maxValue - minValue) * 0.1; // 10% padding
+
+            barChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.datasets.map(ds => ds.field),
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Data Comparison (${selectedDate})`,
+                            font: {
+                                size: 18,
+                                weight: 'bold',
+                                family: "'Helvetica Neue', 'Helvetica', 'Arial', sans-serif"
+                            },
+                            padding: {
+                                top: 10,
+                                bottom: 20
+                            }
+                        },
+                        legend: {
+                            position: 'top',
+                            align: 'center',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                },
+                                generateLabels: function(chart) {
+                                    const datasets = chart.data.datasets;
+                                    return datasets.map((dataset, i) => ({
+                                        text: dataset.label,
+                                        fillStyle: dataset.backgroundColor,
+                                        strokeStyle: dataset.borderColor,
+                                        lineWidth: 2,
+                                        hidden: !chart.isDatasetVisible(i),
+                                        index: i
+                                    }));
+                                }
+                            }
+                        },
+                        tooltip: {
+                            enabled: true,
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#fff',
+                            titleFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            padding: 12,
+                            cornerRadius: 6,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toLocaleString();
+                                    } else {
+                                        label += 'No data';
+                                    }
+                                    return label;
+                                },
+                                title: function(tooltipItems) {
+                                    return tooltipItems[0].label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            min: Math.max(0, minValue - padding),
+                            max: maxValue + padding,
+                            title: {
+                                display: true,
+                                text: 'Value',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                },
+                                padding: {top: 10, bottom: 10}
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                },
+                                font: {
+                                    size: 12
+                                },
+                                padding: 8
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)',
+                                drawBorder: true,
+                                borderDash: [5, 5]
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Fields',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                },
+                                padding: {top: 10, bottom: 10}
+                            },
+                            ticks: {
+                                font: {
+                                    size: 12
+                                },
+                                padding: 8
+                            },
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeInOutQuart'
+                    },
+                    layout: {
+                        padding: {
+                            top: 20,
+                            right: 20,
+                            bottom: 20,
+                            left: 20
+                        }
+                    }
+                }
+            });
+
+            // 显示模态窗口
+            chartModal.show();
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error generating chart: ' + error.message);
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %} 

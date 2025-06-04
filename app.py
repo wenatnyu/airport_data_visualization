@@ -392,6 +392,107 @@ def line_chart():
     
     return render_template('line_chart.html', tables=tables, common_fields=common_fields)
 
+@app.route('/multibar_chart')
+@login_required
+def multibar_chart():
+    # Get list of tables and their fields
+    with db.engine.connect() as conn:
+        result = conn.execute(text("SELECT name FROM sqlite_master WHERE type='table'"))
+        tables = []
+        all_fields = set()
+        
+        for row in result:
+            table_name = row[0]
+            # 跳过 user 表
+            if table_name == 'user':
+                continue
+                
+            # Get table schema
+            schema = conn.execute(text(f"PRAGMA table_info('{table_name}')"))
+            fields = [col[1] for col in schema]
+            tables.append({'name': table_name, 'fields': fields})
+            # 添加所有字段到集合中
+            all_fields.update(fields)
+        
+        # 找出所有表格共有的字段
+        common_fields = []
+        for field in all_fields:
+            # 检查该字段是否在所有表格中都存在
+            if all(field in table['fields'] for table in tables):
+                common_fields.append(field)
+        
+        # 获取所有可用的日期
+        dates = set()
+        for table in tables:
+            query = text(f'SELECT DISTINCT date FROM "{table["name"]}" ORDER BY date')
+            result = conn.execute(query)
+            for row in result:
+                dates.add(row[0])
+        dates = sorted(list(dates))
+        
+        print(f"Tables: {[t['name'] for t in tables]}")  # 调试信息
+        print(f"Common fields: {common_fields}")  # 调试信息
+        print(f"Available dates: {dates}")  # 调试信息
+    
+    return render_template('multibar_chart.html', tables=tables, common_fields=common_fields, dates=dates)
+
+@app.route('/get_multibar_data', methods=['POST'])
+@login_required
+def get_multibar_data():
+    try:
+        data = request.get_json()
+        tables = data.get('tables', [])
+        fields = data.get('fields', [])  # 改为接收多个字段
+        selected_date = data.get('selected_date')
+        
+        if not all([tables, fields, selected_date]):
+            return jsonify({'error': 'Missing required parameters'}), 400
+        
+        # Query data for each table and field
+        datasets = []
+        
+        with db.engine.connect() as conn:
+            for field in fields:
+                field_data = []
+                for table in tables:
+                    query = text(f"""
+                        SELECT "{field}"
+                        FROM "{table}"
+                        WHERE date = :selected_date
+                    """)
+                    
+                    result = conn.execute(query, {
+                        'selected_date': selected_date
+                    })
+                    
+                    value = None
+                    for row in result:
+                        try:
+                            value = float(row[0]) if row[0] is not None else None
+                        except (ValueError, TypeError):
+                            print(f"Warning: Could not convert value {row[0]} to number for table {table}")
+                            value = None
+                        break  # 只取第一个结果
+                    
+                    field_data.append({
+                        'label': table,
+                        'value': value
+                    })
+                
+                datasets.append({
+                    'field': field,
+                    'data': field_data
+                })
+        
+        print(f"Generated datasets: {datasets}")  # 调试信息
+        return jsonify({
+            'datasets': datasets
+        })
+        
+    except Exception as e:
+        print(f"Error in get_multibar_data: {str(e)}")  # 添加错误日志
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/get_chart_data', methods=['POST'])
 @login_required
 def get_chart_data():
